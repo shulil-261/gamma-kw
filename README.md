@@ -1,17 +1,17 @@
 <p align="center">
   <a href="https://www.appilot.app" target="_blank" rel="nofollow">
-    <img src="media/cdh-gen-d130d50a5a594923.jpg" alt="Gamma Kw banner — Android Account Action Runner" width="85%">
+    <img src="media/cdh-gen-6210c8156b1c4e95.jpg" alt="Gamma Kw banner — Android App Data Extraction Runner" width="85%">
   </a>
 </p>
 
 ## gamma kw
 
-**gamma kw** is the account-action runner in this repository. It sends scheduled work to real <a href="https://developer.android.com/" target="_blank" rel="nofollow">Android</a> phones, keeps device and profile assignments explicit, applies pacing before actions leave the queue, and records what happened. The practical reason to run it is simple: manual account work stops being dependable once several profiles and devices need attention at the same time. The bot turns that work into a repeatable run without pretending the platform is under its control.
+`gamma kw` is the repository I use to schedule structured mobile-app data extraction on physical <a href="https://developer.android.com/docs" target="_blank" rel="nofollow">Android devices</a>. A run starts from a local configuration, assigns work to an available device, opens the required app session, captures the mapped fields, normalizes the values, and writes structured output. The practical point is simple: repeated collection work can run from the same project instead of being rebuilt by hand for every device or session.
 
-The repository is meant for operators who already understand accounts, profiles, warmup, rate limits, and the impact of getting flagged. The useful parts are visible rather than hidden behind a hosted service: configuration lives beside the code, runs can be started from the command line, logs stay local, and structured output can be inspected after the devices finish. Real phones are the execution layer, not an emulator pool.
+The tool is meant for operators who already understand accounts, devices, and the cost of a bad run. It does not promise that an app will never flag activity, and it does not pretend a retry can fix every failure. Its controls are narrower and more useful: scheduled execution, physical-device sessions, explicit field mapping, run logs, retry handling, and exports that can be inspected after the job finishes.
 
 <a href="https://www.appilot.app" target="_blank" rel="nofollow">
-  <img src="media/cdh-gen-6eafbb2c40494ebb.jpg" alt="Custom Android Account Automation Built for Your Workflow">
+  <img src="media/cdh-gen-ae175cfa61804e7f.jpg" alt="Mobile App Extraction Automation Built For Your Android Devices">
 </a>
 
 <p align="center">
@@ -29,142 +29,114 @@ The repository is meant for operators who already understand accounts, profiles,
   </a>
 </p>
 
-## What the bot runs
+## The run from input to output
 
-A run starts from an operator-owned configuration that names devices, profiles, schedules, pacing rules, and actions. The scheduler turns that configuration into queued tasks. Before a task reaches a phone, the runner checks its profile assignment, applies the configured delay or warmup rule, and holds any action that requires approval. Approved work is sent through <a href="https://developer.android.com/tools/adb" target="_blank" rel="nofollow">Android Debug Bridge</a>, the standard Android command-line interface for communicating with connected devices.
+Each run follows one visible pipeline. The input is a run configuration that identifies the target app session, the fields to collect, the schedule, and the output location. The scheduler places that work on a physical Android device, the session step performs the configured collection, and the mapping layer turns captured values into the expected field names and types. If a recoverable step fails, the retry path records the failure and attempts the configured recovery instead of silently dropping the job.
 
-Each attempted action returns to the same control path. Success is logged; a recoverable failure can enter the retry path; a risk condition can pause the profile instead of pushing more work at it. The point is not to claim that a platform will accept every action. The controls exist so the operator can see what ran, slow work down, stop a profile, and separate a device problem from an account problem before the next scheduled batch.
+Successful records then pass through normalization before export. Normalization matters because the same value can arrive with inconsistent spacing, labels, or formatting across sessions. The final stage writes the structured dataset and a run log. I use the log to separate three questions that are easy to blur together: did the device start the job, did the app session return the expected fields, and did the export finish cleanly? That separation makes troubleshooting much faster than treating a failed run as one opaque event.
+
+![Run configuration moves through a physical Android session, normalization, retries, CSV, JSON, and logs.](media/cdh-gen-b4527ac357244a08.jpg)
 
 ## Core Features
 
 | Feature | Description |
 | --- | --- |
-| Physical-device execution | Emulator-specific behavior is removed from the run path. Actions are dispatched to genuine Android phones that can be paired with the profiles they operate. |
-| Scheduled account actions | Repeated manual work is easy to miss. The scheduler queues configured outreach, engagement, posting, extraction, or warmup actions for later execution. |
-| Warmup-aware pacing | Fast, uniform action bursts are an operator risk. Per-profile pacing and warmup rules control when queued work may proceed. |
-| Approval gates | High-risk actions should not leave the queue by accident. Marked tasks stop for human approval before execution. |
-| Retries and live run logs | A transient device or session failure should not disappear into a terminal window. Attempts, retries, and final states are logged, and failure states surface an operator alert. |
-| Pause-on-risk rules | A profile that meets a configured risk condition should not keep receiving tasks. The runner can pause that profile and surface the state for review. |
-| Structured exports | Manual copy-paste makes post-run checking brittle. Results can be written as CSV or JSON for inspection or downstream loading. |
+| Physical Android sessions | Emulator-only behavior can differ from the devices actually used in production. This runner places collection work on genuine Android hardware and keeps the device as part of the run record. |
+| Scheduled extraction | Manual repetition does not scale across recurring collection jobs. The scheduler accepts the configured run and starts it without requiring an operator to repeat the same app steps by hand. |
+| Field mapping and normalization | Raw values are hard to use when labels and formats drift between sessions. The mapping layer assigns expected field names and normalizes captured values before export. |
+| Retry-aware failure handling | Transient device or session failures should not erase the rest of a batch. Recoverable failures are logged and routed through retries so the operator can distinguish recovered work from hard failures. |
+| Structured exports | Copying results out of logs creates another manual task. Completed records are written as CSV and JSON, two common interchange formats described by <a href="https://www.rfc-editor.org/rfc/rfc4180" target="_blank" rel="nofollow">RFC 4180</a> and <a href="https://www.rfc-editor.org/rfc/rfc8259" target="_blank" rel="nofollow">RFC 8259</a>. |
+| Operator run logs | A finished file is not enough when a session partly fails. Run logs expose the execution path, retries, and final state so a bad record can be traced back to the stage that produced it. |
 
-The feature set is deliberately operational. It does not promise follower growth, engagement gains, invisibility, or protection from bans. Those outcomes depend on the platform and account history. What the repository controls is the mechanics around each run: which profile uses which device, how work is paced, where approval is required, what gets retried, and what evidence is left behind.
+## Inputs, schedules, and run controls
 
-## Workflow from input to output
+The repository keeps run behavior in configuration rather than burying it inside the extraction code. A typical configuration names the target app workflow, the devices available for the job, the fields expected from the session, the schedule, and the export destination. That makes recurring work explicit: the same collection can run again without an operator rebuilding the sequence, while a changed field map or schedule can be reviewed before the next session starts.
 
-The run pipeline is easiest to understand as a small state machine. Configuration enters at the left. Device and profile validation happen before queue creation, so an invalid pairing fails early instead of halfway through a batch. Queued work then passes through pacing and warmup checks. Tasks marked for approval wait; the rest can move to device execution. After execution, the result is classified, logged, and either completed, retried, or paused for operator review.
+Before a scheduled job starts, the configuration is validated locally. Missing field mappings, an unknown device, or an invalid export path should stop before the first phone is touched. That is the cheapest place to fail. The device layer then works through Android tooling rather than an emulator abstraction; the <a href="https://developer.android.com/tools/adb" target="_blank" rel="nofollow">ADB documentation</a> explains the command bridge used to inspect and control connected Android hardware.
 
-![Workflow from account configuration and Android devices through pacing, approval, execution, retries, logs, CSV, and JSON.](media/cdh-gen-a5778f5119d44242.jpg)
+```bash
+python -m src.cli validate config/run.yaml
+python -m src.cli run config/run.yaml
+```
 
-That shape matters when a run fails overnight. The operator can tell whether the input was invalid, the task never cleared its gate, the phone was unreachable, or the action failed after execution. A single final “failed” status would hide those distinctions and make recovery slower.
-
-## Technical stack
-
-The runner is organized as a small <a href="https://docs.python.org/3/" target="_blank" rel="nofollow">Python</a> application because the workflow is mostly device I/O, queue handling, validation, and file output rather than a heavy server workload. ADB provides the device transport. Local state uses <a href="https://www.sqlite.org/docs.html" target="_blank" rel="nofollow">SQLite</a>, which keeps queues and run records in one file that is easy to inspect and back up. Human-edited settings use <a href="https://yaml.org/spec/1.2.2/" target="_blank" rel="nofollow">YAML</a>; machine outputs use standards-based <a href="https://www.rfc-editor.org/rfc/rfc8259" target="_blank" rel="nofollow">JSON</a> and CSV.
-
-| Layer | Role in this repository |
-| --- | --- |
-| Python CLI | Loads configuration, validates inputs, creates runs, and exposes status commands. |
-| ADB transport | Discovers connected Android hardware and sends device-level commands to the selected phone. |
-| SQLite state | Stores queue state, attempts, approvals, pauses, and run history without requiring a separate database service. |
-| YAML configuration | Keeps devices, profiles, schedules, pacing, and action definitions readable in version control. |
-| CSV / JSON output | Writes structured results that can be reviewed directly or loaded into another data process. |
-
-Logging follows the basic principle in the <a href="https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html" target="_blank" rel="nofollow">OWASP Logging Cheat Sheet</a>: record enough context to investigate an event without turning logs into a dump of sensitive session material. Configuration and logs should be treated as operator data, not as public repository examples.
-
-<a href="https://tally.so/r/yP5oDx?platform=GitHub&amp;format=Product+repo&amp;brand=Appilot&amp;niche=appilot&amp;page=Gamma+Kw+on+Android+Hardware&amp;date=2026-09-26" target="_blank" rel="nofollow">
-  <img src="media/cdh-src-247130105d024ea4.gif" alt="Get a free demo">
+<a href="https://tally.so/r/yP5oDx?platform=GitHub&amp;format=Product+repo&amp;brand=Appilot&amp;niche=appilot&amp;page=Gamma+Kw+on+Android&amp;date=2026-09-26" target="_blank" rel="nofollow">
+  <img src="media/cdh-src-cd398f374ffa4eee.gif" alt="Get a free demo">
 </a>
 
-## Project Directory
+## How to run scheduled extraction using gamma kw
 
-The repository separates run configuration from device transport and from post-run output. That makes the risky parts easier to audit. A change to pacing logic does not require touching ADB code, and a new export field does not require rewriting the scheduler. The layout also keeps generated artifacts out of source modules, which is useful when a run produces logs or data overnight.
+- **STEP 1 - Download & Set Up the Project** Download, set up, and install **gamma kw** to get the project running; copy the repository onto the machine that will run it and install its local dependencies.
+- **STEP 2 - Validate the run** Open the CLI and validate `config/run.yaml` so selected devices, field mappings, schedules, and export paths are checked before hardware is touched.
+- **STEP 3 - Review the collection settings** Confirm the target app workflow, selected physical devices, mapped fields, and output directory match the run you intend to execute.
+- **STEP 4 - Start and inspect** Run the configured job, then inspect the CSV or JSON dataset together with the run log to identify completed, retried, and failed work.
+
+## Technical stack and repository layout
+
+The stack is deliberately local and inspectable. <a href="https://docs.python.org/3/" target="_blank" rel="nofollow">Python</a> is the CLI and scheduling layer because the repository is driven by commands, configuration parsing, file handling, and retry logic rather than a browser-only interface. Android device control is kept behind the device module so collection logic does not have to know the transport details. Structured results are emitted as CSV and JSON instead of a proprietary container, which keeps downstream use simple.
+
+State that belongs to a run, such as whether a task was queued, retried, completed, or failed, is stored separately from exported records. That separation keeps the dataset clean and lets the log remain an operational artifact rather than another data source. Configuration is also separate from extraction code, so a field mapping or schedule change does not require editing the session implementation. Log output stays focused on run state and failure evidence rather than dumping every internal event by default.
 
 ```text
-device-runner/
+app-extraction-runner/
 ├── config/
-│   ├── devices.yaml
-│   ├── profiles.yaml
-│   ├── schedule.yaml
-│   └── actions.yaml
-├── runner/
-│   ├── __main__.py
+│   ├── run.yaml
+│   ├── fields.yaml
+│   └── devices.yaml
+├── src/
 │   ├── cli.py
-│   ├── config.py
 │   ├── scheduler.py
-│   ├── queue.py
-│   ├── approvals.py
-│   ├── pacing.py
-│   ├── risk.py
-│   ├── logging.py
-│   ├── devices/
-│   │   ├── adb.py
-│   │   └── registry.py
-│   └── exports/
-│       ├── csv_writer.py
-│       └── json_writer.py
-├── data/
-│   ├── runs.db
-│   ├── exports/
-│   └── logs/
-├── tests/
-│   ├── test_queue.py
-│   ├── test_pacing.py
-│   └── test_risk.py
+│   ├── devices.py
+│   ├── session.py
+│   ├── mapping.py
+│   ├── retry.py
+│   ├── exporters.py
+│   └── logging_setup.py
+├── output/
+│   ├── records.csv
+│   ├── records.json
+│   └── run.log
 ├── requirements.txt
 └── README.md
 ```
 
-The `config/` directory is the operator surface. The `runner/` package owns execution rules. `data/` holds local run state and generated files. Tests focus on queue, pacing, and risk behavior because mistakes there can affect several profiles before anyone notices.
+## Outputs, retries, and failure evidence
+
+A successful extraction produces structured records plus evidence about the run that produced them. CSV is convenient for spreadsheets and quick inspection; JSON preserves nested values more naturally when a downstream script needs them. The exporter should not treat those files as proof that every session succeeded. The run log is the source for operational state, including which work completed normally, which work recovered after a retry, and which work stopped with a hard failure.
+
+That distinction becomes important overnight. A partial device outage can leave a valid file containing fewer records than expected, and the absence of an exception at the export stage does not prove the collection stage was complete. The runner therefore records failure where it happens, then carries that status to the end of the job. Downstream code should treat the dataset and the run log as separate artifacts: one contains captured values, while the other explains whether the collection path completed cleanly.
+
+```text
+run=nightly device=phone-alpha status=completed records=written
+run=nightly device=phone-beta status=retried stage=session
+run=nightly device=phone-gamma status=failed stage=extraction
+```
+
+## Performance checks that matter
+
+This README does not publish a run-time, throughput, success-rate, or uptime figure because I do not have a measured value that applies across the devices and app workflow here. The useful benchmarks are measured on the hardware and extraction path actually being run: job duration, records written, retries per run, hard failures, and time spent acquiring a device versus working inside the app. Android's <a href="https://developer.android.com/topic/performance/vitals" target="_blank" rel="nofollow">performance vitals</a> and <a href="https://developer.android.com/topic/performance/benchmarking/benchmarking-overview" target="_blank" rel="nofollow">benchmarking guidance</a> are useful references for keeping device-side measurements disciplined.
+
+For my own acceptance checks, the first question is completeness rather than raw speed. A faster run that silently skips mapped fields is worse than a slower run with a clean dataset and a traceable failure record. The next check is repeatability: the same configuration should produce the same field shape even when the values change. Finally, retry behavior should be visible in the log, not hidden inside a success count. Those checks can be measured without pretending the repository guarantees a platform outcome.
 
 ## Use Cases
 
-- **Run account warmup on assigned phones.** Profiles can be paired with devices, paced through staged actions, and paused when a configured risk condition appears.
-- **Schedule routine engagement or outreach overnight.** Instead of leaving repeated work to a manual checklist, the queue starts eligible tasks at their scheduled time and leaves a run record for review.
-- **Collect structured mobile-app data.** Device sessions can produce normalized CSV or JSON output when the configured action is extraction rather than engagement.
-- **Put a human gate in front of sensitive actions.** Tasks marked for approval wait until an operator explicitly clears them, while lower-risk scheduled work can continue.
-
-These use cases share the same operating model: the bot controls sequencing and evidence, while a human still owns the policy decisions. Rate limits, warmup rules, and approval gates are safeguards around execution. They are not guarantees that an account will avoid flags or bans.
-
-## How to Run Account Actions Using gamma kw
-
-- **STEP 1 — Download & Set Up the Project.** Download, set up, and install **gamma kw** from this repository, then create the local Python environment and install the listed dependencies.
-- **STEP 2 — Connect Devices.** Attach the Android phones, confirm ADB can see them, then map each device identifier in `config/devices.yaml`.
-- **STEP 3 — Configure the Run.** Add profile assignments, schedule entries, pacing rules, approval requirements, and the permitted actions in the YAML files under `config/`.
-- **STEP 4 — Run and Review.** Start the CLI run, then inspect the local run log, queue state, and any CSV or JSON files written under `data/`.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-adb devices
-python -m runner validate config/
-python -m runner run config/
-python -m runner status --latest
-```
-
-Validation should be run before the scheduler is started. It catches missing device mappings, unknown profile references, and malformed action configuration while the batch is still inert. The final status command is the fastest post-run check; deeper investigation belongs in the per-run log and the SQLite state.
-
-## Run output and failure handling
-
-A useful run leaves evidence that can be compared against the configuration that launched it. The local database keeps task state and attempts; the log records transitions and failure context; CSV or JSON contains any structured result produced by the configured action. <a href="https://www.rfc-editor.org/rfc/rfc4180" target="_blank" rel="nofollow">RFC 4180</a> is a useful reference for interoperable CSV output when downstream tools are strict about quoting and line handling.
-
-Failure handling is intentionally split by type. A device transport problem can be retried without changing the account policy. A malformed configuration should fail validation before execution. A risk condition should pause the affected profile rather than being treated as a normal transient error. That separation is what makes overnight runs reviewable instead of opaque.
-
-No runtime or throughput figure is published here because a number without a reproducible run would be misleading. For a local benchmark, use the same configuration on the same phones and keep the run logs. That makes queue delay, retries, and device failures comparable without turning one machine’s result into a universal claim.
+- Run recurring mobile-app extraction overnight on physical Android devices, then hand the resulting CSV to an analyst who needs rows rather than screenshots or copied text.
+- Collect the same mapped fields across repeated app sessions and normalize them into a stable JSON shape for another local script or warehouse-loading step.
+- Separate transient device trouble from extraction failures by reviewing retries and final states in the run log before deciding which sessions need another pass.
+- Change a schedule, device selection, or field map in configuration while keeping the extraction code unchanged, which is useful when the data requirement moves more often than the app flow.
 
 ## FAQ
 
-### Does the bot run on emulators or physical phones?
+### Does it require physical Android devices?
 
-It runs its mobile automation on physical Android phones. ADB is the device transport, and profiles are mapped to real devices in configuration rather than being placed into an emulator pool.
+Yes. The run path described here is built around genuine Android hardware rather than an emulator. Device assignment and session execution assume connected or remotely managed physical phones, so an emulator-only setup would not match this repository's operating model.
 
-### How does it handle flagged accounts or failed actions?
+### What happens when a device or extraction step fails?
 
-Failures and risk conditions take different paths. Recoverable execution problems can be retried and logged, while a configured risk condition can pause the affected profile for operator review. Pacing, warmup, and approval gates reduce accidental over-execution, but they do not guarantee that a platform will not flag or ban an account.
+Recoverable failures are recorded and sent through the configured retry path; hard failures remain visible in the run log with the stage that stopped. A retry is not treated as proof of success, so the final state still needs to be checked before the output is accepted as complete.
 
-### What files does a run produce?
+### What data formats does a run produce?
 
-A run updates local state and writes logs, with CSV or JSON used when the configured action produces structured data. The exact artifact depends on the action, but the repository keeps generated output under `data/` rather than mixing it with source code.
+The extraction output is written as CSV and JSON, with operational details kept in a separate run log. CSV is useful for row-oriented inspection, while JSON is better when the captured structure needs to remain nested for downstream code.
 
 <table>
   <tr>
