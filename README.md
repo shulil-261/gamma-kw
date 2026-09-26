@@ -1,17 +1,19 @@
 <p align="center">
   <a href="https://www.appilot.app" target="_blank" rel="nofollow">
-    <img src="media/cdh-gen-926134bf4ab44bd5.jpg" alt="Gamma Kw banner — Real Device Account Automation Tool" width="85%">
+    <img src="media/cdh-gen-47745ffb986e4342.jpg" alt="Gamma Kw banner — Real Device Automation &amp; Data Extraction" width="85%">
   </a>
 </p>
 
-## gamma kw
+## Gamma KW
 
-gamma kw is the automation repository I use when account work has outgrown manual phones and one-off browser sessions. It routes scheduled actions to genuine <a href="https://developer.android.com/" target="_blank" rel="nofollow">Android devices</a>, keeps desktop profiles isolated, records what happened, retries recoverable failures, and writes structured app data for later review. The practical distinction is simple: mobile jobs run on physical Android hardware rather than emulators, while desktop jobs can be sent through isolated browser profiles. A profile here means a separate browser identity with its own session data and settings.
+**Gamma KW** is the repository I use to schedule account work across real <a href="https://developer.android.com/" target="_blank" rel="nofollow">Android</a> devices, route desktop-profile tasks, collect app data, and keep operators in control of actions that can get accounts flagged. It is not an emulator wrapper. The mobile side runs against genuine Android hardware, while the desktop side can hand work to isolated profiles in <a href="https://www.adspower.com/" target="_blank" rel="nofollow">AdsPower</a> or <a href="https://multilogin.com/" target="_blank" rel="nofollow">Multilogin</a>. The same operator view exposes queued work, live logs, retries, pauses, and completed exports.
 
-The tool is meant for operators handling many accounts or devices at once. Warmup, engagement, outreach, posting, and extraction jobs all pass through the same scheduling and logging path, with rate limits and approval gates available for higher-risk actions. It does not promise that an account will avoid a ban, and it does not decide platform policy. Its job is to make pacing, device assignment, retries, logs, and output repeatable enough that an operator can see exactly what ran and what needs attention.
+The practical fit is straightforward: this is for an agency or operator managing many accounts or devices at once, where manual repetition stops scaling and a bad run is more expensive than a slow one. The system favors pacing, queues, warmup-aware scheduling, approval gates, and pause-on-risk rules over raw speed. It can schedule outreach, engagement, posting, warmup, data extraction, and profile-routed desktop work, but it does not promise that a platform will never flag or ban an account.
+
+Two output formats are built into the data path: CSV for quick inspection and handoff, and JSON for structured downstream use. For format details, the export layer follows the conventions described in <a href="https://www.rfc-editor.org/rfc/rfc4180" target="_blank" rel="nofollow">RFC 4180 for CSV</a> and <a href="https://www.rfc-editor.org/rfc/rfc8259" target="_blank" rel="nofollow">RFC 8259 for JSON</a>.
 
 <a href="https://www.appilot.app" target="_blank" rel="nofollow">
-  <img src="media/cdh-gen-f17d70337c6d4ab9.jpg" alt="Real Device Automation Built for Account Operations">
+  <img src="media/cdh-gen-e92d4f92ad884d4c.jpg" alt="Build Real Device Automation for Multi-Account Operations">
 </a>
 
 <p align="center">
@@ -31,132 +33,120 @@ The tool is meant for operators handling many accounts or devices at once. Warmu
 
 ## Core Features
 
+The feature set is organized around the failure points that appear when account work moves from a handful of profiles to a fleet: inconsistent pacing, stale sessions, missed retries, unclear ownership, and exports that need manual cleanup.
+
 | Feature | Description |
 | --- | --- |
-| Real Android device runs | Manual phone work becomes the bottleneck, so scheduled jobs are assigned to physical Android devices and monitored from one operator view. |
-| Desktop profile routing | Mixed browser sessions are hard to audit, so desktop tasks use isolated profiles through the configured profile manager. |
-| Warmup-aware pacing | Bursting actions can get an account flagged, so queues respect per-account pacing and staged warmup rules. |
-| Approval gates | High-risk actions should not fire silently, so selected actions pause for an operator decision before execution. |
-| Retries and failure alerts | Transient device or session failures should not disappear. Failed work is recorded, retried where appropriate, and surfaced for review. |
-| Structured extraction | Manual copying creates cleanup work, so selected app fields are normalized and exported as CSV or JSON. |
+| Real Android device runs | Emulator-only behavior is not representative enough for this workflow. Scheduled mobile actions run on physical Android devices and stay visible through centralized operations. |
+| Scheduled account actions | Operators should not babysit overnight queues. Outreach, engagement, posting, warmup, and other account actions can be scheduled with rate limits, queues, and warmup-aware pacing. |
+| Approval gates | Some actions deserve a human decision before execution. Higher-risk account actions can wait for approval instead of moving automatically from queue to device. |
+| Desktop profile routing | Profile work becomes brittle when operators open sessions by hand. Tasks can be routed into isolated desktop profiles managed through AdsPower or Multilogin. |
+| Structured app-data exports | Raw app sessions are awkward to reuse. Extracted fields are mapped and normalized before export to CSV or JSON, with scheduling and failure recovery around the collection run. |
+| Logs, retries, and pause rules | Silent failures create duplicate actions and hard-to-audit accounts. Runs expose live logs, retry paths, and automated pause-on-risk behavior so an operator can stop or resume work deliberately. |
 
-The operating model stays consistent: queue, route, apply controls, execute, then record the result. That matters more than any single bot because warmup, outreach, engagement, posting, and extraction all leave the same kind of operational trail. The operator can see which account and device were used, whether approval or a retry was required, and whether an output file was written.
+## Workflow: From Queue to Export
 
-## Workflow from queue to output
+A normal run starts with a prepared account or profile, a paired device where the mobile path is required, and a task definition that specifies the action, pacing, and any approval requirement. The scheduler places that work in a queue rather than firing every account at once. Warmup rules and rate limits shape when the task is allowed to move.
 
-A run starts with a configuration file that names the task, account or profile group, pacing rules, approval requirements, and requested output. The scheduler validates that configuration, checks the target device or desktop profile, and places the work in the right queue. Mobile work is sent to a connected Android device; desktop work is sent to the configured profile manager. The action runner then executes the allowed steps, records events, and either completes, retries, pauses for approval, or marks the item for operator review.
+The worker then sends the task to the correct execution path: a real Android device for mobile app work, or the assigned desktop profile for browser-side work. During execution, the operator dashboard receives status and log events. A recoverable failure can return to the retry path; a risk signal can pause the task instead of continuing blindly. For log design, the repository follows the same basic principles as the <a href="https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html" target="_blank" rel="nofollow">OWASP Logging Cheat Sheet</a> and <a href="https://csrc.nist.gov/pubs/sp/800/92/final" target="_blank" rel="nofollow">NIST log management guidance</a>: record enough context to reconstruct what happened without treating logs as an afterthought.
 
-Extraction follows the same path but ends differently. Instead of stopping at an account action, the runner captures the requested app fields, normalizes them, and writes one of two standard export shapes: CSV or JSON. Logs remain separate from the dataset so operational noise does not leak into the output. A failed item can therefore be inspected without corrupting the completed rows from the rest of the batch. In practice, that makes a mixed run easy to inspect: a warmup item can pause for review while an unrelated extraction item finishes and writes its dataset. Queue state, action logs, and exported records stay distinct, so troubleshooting one account does not require reopening every successful result.
+When the run is a scraping job, mapped fields pass through normalization before the exporter writes the structured dataset. Account-action jobs finish with status and campaign reporting rather than a dataset. The important distinction is that the queue, execution path, logging, recovery, and operator decision points are visible in one flow.
 
-![Scheduled account work moves through devices, controls, retries, logs, and CSV or JSON outputs.](media/cdh-gen-4a038210005d4d90.jpg)
+![Queued account tasks move through real devices or desktop profiles, then logs, retries, and CSV or JSON output.](media/cdh-gen-339941d18c884b1d.jpg)
 
-## Tech stack and integration points
+## Technical Stack
 
-The control layer is Python because the repository needs readable job definitions, API calls, file transforms, and operator scripts in one place. Physical Android devices are discovered and checked with <a href="https://developer.android.com/tools/adb" target="_blank" rel="nofollow">Android Debug Bridge</a>. UI-level device actions use <a href="https://developer.android.com/training/testing/other-components/ui-automator" target="_blank" rel="nofollow">UI Automator</a>, which exposes visible Android interface elements without requiring the target app's source code.
+The stack is deliberately operational rather than decorative. The mobile execution layer is a fleet of genuine Android phones. The desktop execution layer uses profile managers that keep browser identities separated per account. Above both sits a scheduler and worker queue, with an operator dashboard for task state, logs, approvals, and retries. The export layer handles field mapping, normalization, CSV, and JSON.
 
-Desktop profile jobs use the documented <a href="https://help.adspower.com/docs/api" target="_blank" rel="nofollow">AdsPower Local API</a> or <a href="https://multilogin.com/help/en_US/api" target="_blank" rel="nofollow">Multilogin automation API</a>, depending on the profile group in the job configuration. CSV and JSON stay as the standard extraction outputs because both are easy to inspect and pass downstream without locking the repository to a warehouse. Operational events are written as structured logs; the logging layout follows the separation principles in the <a href="https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html" target="_blank" rel="nofollow">OWASP logging guidance</a>. The scheduler and retry layer stay independent of those adapters, which makes device checks, profile checks, and output validation testable without running a full account workflow.
+That split matters because each layer owns one job. Devices execute mobile actions; profile managers contain desktop sessions; the queue controls pacing; the dashboard exposes what is happening; exporters turn collected app data into reusable records. The repository does not depend on one opaque process doing all five things. That makes failures easier to locate: a device issue, a profile issue, a blocked approval, and a bad export are separate states rather than one generic error.
 
-<a href="https://tally.so/r/yP5oDx?platform=GitHub&amp;format=Product+repo&amp;brand=Appilot&amp;niche=appilot&amp;page=Gamma+Kw+on+Real+Android+Devices&amp;date=2026-09-24" target="_blank" rel="nofollow">
-  <img src="media/cdh-src-f3838f658f6546ac.gif" alt="Get a free demo">
+For security review of the mobile side, <a href="https://mas.owasp.org/MASVS/" target="_blank" rel="nofollow">OWASP MASVS</a> is a useful external benchmark for thinking about mobile-app handling and sensitive data boundaries. It does not certify this repository; it is simply a reference standard for evaluating mobile application security controls.
+
+<a href="https://tally.so/r/yP5oDx?platform=GitHub&amp;format=Product+repo&amp;brand=Appilot&amp;niche=appilot&amp;page=Gamma+KW+on+Real+Android+Devices&amp;date=2026-09-24" target="_blank" rel="nofollow">
+  <img src="media/cdh-src-5a297297872146b4.gif" alt="Get a free demo">
 </a>
 
-## Project directory and local setup
+## Project Directory and Commands
 
-The repository is split by operational responsibility rather than by social platform. Device adapters know how to reach Android hardware, profile adapters know how to reach desktop profile managers, workflow modules define warmup, engagement, outreach, posting, and extraction jobs, and governance modules hold pacing and approval rules. That layout keeps a failed integration from turning every workflow into a special case. The dashboard reads the same scheduler state rather than maintaining a second source of truth, so CLI and operator views agree about queued, paused, retried, and completed work.
+The repository keeps runtime code, fleet configuration, task definitions, export mapping, and operator scripts separate. That separation is useful when something changes overnight: a pacing rule can be edited without touching export mappings, and a field-mapping change does not require rewriting device assignment.
 
 ```text
 gamma-kw/
-├── README.md
-├── pyproject.toml
-├── requirements.txt
-├── configs/
+├── config/
+│   ├── devices.yaml
+│   ├── profiles.yaml
+│   ├── rate-limits.yaml
+│   └── warmup.yaml
+├── tasks/
 │   ├── nightly.yaml
-│   └── profiles.yaml
+│   └── scrape.yaml
+├── mappings/
+│   └── fields.yaml
 ├── src/
-│   └── gamma_kw/
-│       ├── __main__.py
-│       ├── cli.py
-│       ├── config.py
-│       ├── devices/
-│       │   ├── adb.py
-│       │   ├── android_runner.py
-│       │   └── health.py
-│       ├── profiles/
-│       │   ├── adspower.py
-│       │   └── multilogin.py
-│       ├── workflows/
-│       │   ├── warmup.py
-│       │   ├── engagement.py
-│       │   ├── outreach.py
-│       │   ├── posting.py
-│       │   └── extraction.py
-│       ├── governance/
-│       │   ├── approvals.py
-│       │   └── limits.py
-│       ├── ops/
-│       │   ├── scheduler.py
-│       │   ├── retries.py
-│       │   └── events.py
-│       ├── outputs/
-│       │   ├── csv_writer.py
-│       │   └── json_writer.py
-│       └── dashboard/
-│           └── app.py
-└── tests/
-    ├── test_scheduler.py
-    ├── test_limits.py
-    └── test_outputs.py
+│   ├── scheduler/
+│   ├── workers/
+│   ├── dashboard/
+│   ├── exports/
+│   └── connectors/
+├── scripts/
+│   ├── bootstrap
+│   ├── start
+│   ├── run-once
+│   ├── status
+│   └── retry-failed
+├── runs/
+└── README.md
 ```
 
-A clean machine only needs Python, the Android platform tools for mobile runs, and valid credentials for whichever desktop profile manager is enabled. The first local check should confirm that devices are visible before any account job is queued. The handoff also includes runbooks and hygiene rules for routine operation. The original post-launch support and monitoring window is 30 days; after that, the repository still carries the procedures needed for normal device checks, retry review, and output validation.
+The normal local path is to bootstrap once, start the services, then either let the scheduler pick up configured work or trigger a single task file. `status` is the first check when a run stalls because it shows whether work is queued, active, paused, failed, or complete. Failed work is retried explicitly rather than by restarting the whole fleet.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-adb devices
-python -m gamma_kw doctor
-python -m gamma_kw run --config configs/nightly.yaml
+./scripts/bootstrap
+./scripts/start
+./scripts/run-once --config tasks/nightly.yaml
+./scripts/status
+./scripts/retry-failed
 ```
 
-## How to Run Account Automation Using gamma kw
+## Performance, Failure Handling, and Run Hygiene
 
-The shortest safe path is to validate connectivity before loading account work. Keep the first run small enough to inspect every state change, then use the same configuration shape for scheduled batches once devices, profiles, controls, logs, and exports all agree.
+The main operating rule is to preserve account state rather than chase throughput. I do not publish a jobs-per-hour figure because there is no measured benchmark in this repository that I can support. For comparisons, use like-for-like task files and read queue duration, retries, pauses, and completion state from the run logs. A slower queue is recoverable; replaying uncertain work is not.
 
-- **STEP 1 - Download & Set Up the Project**: Download, set up, and install **gamma kw** to get the project running, then install its Python dependencies and Android platform tools on the operator machine.
-- **STEP 2 - Check Devices and Profiles**: Run `python -m gamma_kw doctor` to verify connected Android devices and confirm the configured desktop profile manager can be reached.
-- **STEP 3 - Configure the Queue**: Edit `configs/nightly.yaml` with the workflow, account or profile group, pacing rules, approval requirement, and CSV or JSON output mode.
-- **STEP 4 - Run and Review**: Start `python -m gamma_kw run --config configs/nightly.yaml`; review logs and retries, then inspect the completed CSV or JSON export.
+That is why retries and pauses are explicit parts of the run. A recoverable technical failure can re-enter the queue under the configured retry path. A risk-related condition can pause the affected account or task so an operator decides what happens next. Approval gates provide the same control before selected higher-risk actions. Warmup playbooks are staged per platform, and device/profile pairing is kept stable where long-term trust matters.
+
+The logs are intended for reconstruction, not decoration. A useful run record answers which account or profile was targeted, which device handled it, which task was attempted, whether approval was required, whether a retry occurred, and what final state was written. There is no ban-proof claim hidden in this design. Pacing and hygiene reduce avoidable operator mistakes; the platform still decides what gets flagged.
 
 ## Use Cases
 
-- **Overnight account warmup:** stage lower-volume actions by account and device, keep pacing rules with the queue, and pause work automatically when the configured risk rule says the account needs review.
-- **Scheduled engagement or outreach:** put repeatable account actions into queues instead of handing operators a checklist, while keeping rate limits and approval gates visible before execution.
-- **Mobile app data extraction:** collect selected fields from genuine Android app sessions and deliver normalized CSV or JSON rather than copying values from screens into a spreadsheet.
-- **Desktop profile operations:** route browser tasks to isolated AdsPower or Multilogin profiles so cookies, local storage, and session state are not mixed across accounts.
-- **Operator recovery after failures:** use centralized logs and retry records to separate a temporary device or session problem from work that needs a manual decision.
+- Run warmup overnight across paired accounts and devices, with staged activity, rate limits, health checks, and pause rules instead of a spreadsheet and a row of hand-driven phones.
+- Schedule outreach or engagement across many accounts while keeping higher-risk actions behind an approval gate and leaving a log trail for retries and operator review.
+- Extract structured data from a mobile app session on real Android hardware, map the required fields, normalize them, and write the result as CSV or JSON for downstream work.
+- Route browser-side tasks to the correct isolated profile in AdsPower or Multilogin so operators do not have to open, match, and close sessions manually.
 
-The useful boundary is that the repository coordinates work that is already defined. It is not a general-purpose decision engine, and it does not invent outreach copy, platform policy, or account strategy. That keeps the operator in control of what the queue is allowed to do.
+These cases share the same operating model: queue the work, preserve per-account context, make pacing visible, and treat failure as a state to inspect rather than a reason to replay everything. The tool fits best where the risk of a wrong action per account is higher than the inconvenience of waiting for a controlled retry.
 
-## Performance checks and failure handling
+## How to Run Scheduled Account Actions Using Gamma KW
 
-I do not use a single headline runtime as the benchmark because the duration of a batch depends on pacing, approvals, device state, profile availability, and the target app. The useful checks are operational: did the queue drain as expected, did retries settle, did devices remain healthy, and did every completed extraction produce a valid file? A fast run that leaves half the items in an unknown state is worse than a slower run with a complete audit trail.
+- **STEP 1 - Download & Set Up the Project** Download, set up, and install **Gamma KW** by cloning this repository and running `./scripts/bootstrap` to prepare the declared runtime dependencies.
+- **STEP 2 - Start the Operator View** Run `./scripts/start`, then open the dashboard to confirm devices, profiles, queued work, live logs, approvals, and paused tasks are visible.
+- **STEP 3 - Choose the Run Inputs** Select the task definition and check device or profile assignment, account pacing, warmup stage, rate limits, approval requirements, and export mapping where applicable.
+- **STEP 4 - Trigger and Read the Output** Start the configured run or call `./scripts/run-once --config tasks/nightly.yaml`; review final status, retries, reporting, or the CSV and JSON files written by extraction jobs.
 
-The failure path is explicit. Recoverable device or session errors are retried; approval-gated work pauses; persistent failures remain visible for operator review instead of being silently discarded. Logs should also avoid secrets and session tokens, which is why the repository keeps event fields narrow and output data separate. For external context on real-device automation, the <a href="https://saucelabs.com/resources/report/sauce-labs-continuous-testing-benchmark-report" target="_blank" rel="nofollow">Continuous Testing Benchmark Report</a> and <a href="https://saucelabs.com/resources/report/the-state-of-mobile-app-quality-2026" target="_blank" rel="nofollow">State of Mobile App Quality 2026</a> are useful comparison material, not promises about this repository.
+For day-to-day operation, the single-run command is useful before changing a scheduled task because it exposes the same queue and logging path without waiting for the next schedule. If the run pauses or fails, `./scripts/status` comes before any retry. That keeps the operator from replaying work whose final state is still unclear.
 
 ## FAQ
 
-### Does this tool guarantee that accounts will not get banned?
+### Does the tool run on emulators?
 
-No. The repository gives operators pacing rules, warmup stages, rate limits, device or profile pairing, approval gates, and pause-on-risk controls, but the platform still decides whether an account is flagged or banned. Treat those controls as governance and hygiene, not as a guarantee of an outcome outside the tool.
+No. The mobile automation path is built around genuine Android hardware rather than emulators. That is the execution environment used for scheduled mobile actions, warmup, and app data extraction.
 
-### What data can I export from a run?
+### How are higher-risk account actions controlled?
 
-Extraction jobs write structured CSV or JSON. The field set comes from the mapping configured for that workflow, and normalization happens before the export is written. Operational logs remain separate so retry messages and device events do not become rows in the dataset.
+They can be held behind approval gates before execution. Rate limits, queues, warmup-aware pacing, health checks, and pause-on-risk rules add additional control, but none of those mechanisms can guarantee that a platform will not flag or ban an account.
 
-### Can the same repository run Android devices and desktop profiles?
+### What happens when a device or profile fails during a run?
 
-Yes. Mobile jobs are routed to genuine Android hardware, while desktop jobs can be routed through AdsPower or Multilogin profiles. The scheduler and logging path are shared, but the device and profile adapters stay separate so a problem in one integration does not change the other run path.
+The failure is recorded in the run state and logs, then handled through the configured retry or pause path instead of replaying the entire workload. Operators can inspect the affected account, device, or profile first, then retry failed work deliberately.
 
 <table>
   <tr>
